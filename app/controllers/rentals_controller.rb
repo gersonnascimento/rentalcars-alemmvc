@@ -1,4 +1,5 @@
 class RentalsController < ApplicationController
+  before_action :set_rental, only: %i[confirm]
   before_action :authorize_user!, only: %i[confirm]
 
   def index
@@ -12,34 +13,18 @@ class RentalsController < ApplicationController
   end
 
   def create
-    @rental = Rental.new(rental_params)
-    subsidiary = current_subsidiary
-    @rental.subsidiary = subsidiary
-    @rental.status = :scheduled
-    @rental.price_projection = @rental.calculate_price_projection
-    if @rental.save
-      redirect_to rental_path(@rental.id)
-    else
+    @rental = RentalBuilder.new(rental_params, current_subsidiary).build
+      return redirect_to rental_path(@rental.id) if @rental.save
+
       @clients = Client.all
       @categories = Category.all
       render :new
-    end
   end
 
   def confirm
     @rental = Rental.find(params[:id])
-    if @car = Car.find_by(id: params[:car_id])
-      @rental.rental_items.create(rentable: @car, daily_rate:
-                                  @car.category.daily_rate +
-                                  @car.category.third_party_insurance +
-                                  @car.category.car_insurance)
-      if addons = Addon.where(id: params[:addon_ids])
-        addon_items = addons.map { |addon| addon.first_available_item }
-        addon_items.each do |addon_item|
-          @rental.rental_items.create(rentable: addon_item, daily_rate: addon_item.addon.daily_rate)
-        end
-      end
-      @rental.update(price_projection: @rental.calculate_final_price)
+    @car = Car.find_by(id: params[:car_id])
+    if RentalConfirmer.new(@rental, @car, params[:addon_ids]).confirm
       render :confirm
     else
       flash[:danger] = "Carro deve ser selecionado"
@@ -78,10 +63,17 @@ class RentalsController < ApplicationController
                                    rental_items_attributes: [:car_id])
   end
 
-  def authorize_user!
+  def set_rental
     @rental = Rental.find(params[:id])
-    unless current_user.admin? || @rental.subsidiary == current_subsidiary
-      redirect_to @rental
-    end
+  end
+
+  def authorize_user!
+    return if authorized?
+
+    redirect_to @rental
+  end
+
+  def authorized?
+    RentalAuthorizer.new(@rental, current_user).authorized?
   end
 end
