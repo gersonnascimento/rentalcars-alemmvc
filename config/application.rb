@@ -24,6 +24,7 @@ module RentalCars
     config.i18n.load_path += Dir[Rails.root.join('my', 'locales', '*.{rb,yml}').to_s]
     config.i18n.default_locale = :'pt-BR'
     config.i18n.fallbacks = true
+    config.active_job.queue_adapter = :delayed_job
     # Settings in config/environments/* take precedence over those specified here.
     # Application configuration can go into files in config/initializers
     # -- all .rb files in that directory are automatically loaded after loading
@@ -31,7 +32,7 @@ module RentalCars
 
     # Whitelist locales available for the application
     I18n.available_locales = [:'pt-BR']
- 
+
     # Set default locale to something other than :en
     I18n.default_locale = :'pt-BR'
     # Don't generate system test files.
